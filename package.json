@@ -9,6 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit"
   },
+  "allowScripts": {
+    "esbuild": true
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.468.0",
