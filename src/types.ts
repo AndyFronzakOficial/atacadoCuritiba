@@ -12,6 +12,7 @@ export interface Product {
   price: number
   discountPercent: number
   visual: string
+  imageUrl?: string
   active: boolean
 }
 

@@ -12,6 +12,7 @@ import ProductArtwork from './components/ProductArtwork'
 import Toast from './components/Toast'
 import { categories, demoOrders, demoProducts } from './lib/demo-data'
 import { currency, makeId, makeOrderNumber, whatsappUrl } from './lib/format'
+import { blobToDataUrl, optimizeProductImage } from './lib/images'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import type { CartLine, Customer, Order, OrderStatus, Product, ProductInput } from './types'
 
@@ -32,7 +33,7 @@ function mapProduct(row: Record<string, unknown>): Product {
     id: String(row.id), sku: String(row.sku ?? ''), name: String(row.name ?? ''), barcode: String(row.barcode ?? ''),
     description: String(row.description ?? ''), category: String(row.category ?? 'Bazar'), stock: Number(row.stock ?? 0),
     initialPrice: Number(row.initial_price ?? 0), price: Number(row.price ?? 0), discountPercent: Number(row.discount_percent ?? 0),
-    visual: String(row.visual ?? 'organizer'), active: Boolean(row.active),
+    visual: String(row.visual ?? 'organizer'), imageUrl: String(row.image_url ?? ''), active: Boolean(row.active),
   }
 }
 
@@ -224,23 +225,41 @@ export default function App() {
     return order
   }
 
-  async function saveProduct(input: ProductInput) {
+  async function saveProduct(input: ProductInput, imageFile: File | null) {
+    const productId = input.id || makeId()
     if (supabase) {
+      let imageUrl = input.imageUrl || ''
+      const storagePath = `${productId}/cover.webp`
+      if (imageFile) {
+        const optimized = await optimizeProductImage(imageFile)
+        const { error } = await supabase.storage.from('product-images').upload(storagePath, optimized, {
+          upsert: true, cacheControl: '3600', contentType: optimized.type || 'image/webp',
+        })
+        if (error) throw new Error(`Não foi possível enviar a imagem: ${error.message}. Confira o bucket product-images no Supabase.`)
+        const publicUrl = supabase.storage.from('product-images').getPublicUrl(storagePath).data.publicUrl
+        imageUrl = `${publicUrl}?v=${Date.now()}`
+      } else if (!imageUrl && input.id) {
+        // Ao remover a foto no formulário, apaga também o arquivo anterior do Storage.
+        await supabase.storage.from('product-images').remove([storagePath])
+      }
+
       const payload = {
         sku: input.sku, barcode: input.barcode, name: input.name, description: input.description,
         category: input.category, stock: input.stock, initial_price: input.initialPrice, price: input.price,
-        discount_percent: input.discountPercent, visual: input.visual, active: input.active,
+        discount_percent: input.discountPercent, visual: input.visual, image_url: imageUrl, active: input.active,
       }
       const result = input.id
-        ? await supabase.from('products').update(payload).eq('id', input.id).select('*').single()
-        : await supabase.from('products').insert(payload).select('*').single()
+        ? await supabase.from('products').update(payload).eq('id', productId).select('*').single()
+        : await supabase.from('products').insert({ ...payload, id: productId }).select('*').single()
       if (result.error) throw new Error(result.error.message)
       const saved = mapProduct(result.data as Record<string, unknown>)
       setProducts((current) => input.id ? current.map((item) => item.id === input.id ? saved : item) : [...current, saved])
       notify(input.id ? 'Produto atualizado com sucesso.' : 'Produto adicionado ao catálogo.')
       return
     }
-    const saved: Product = { ...input, id: input.id || makeId() }
+
+    const imageUrl = imageFile ? await blobToDataUrl(await optimizeProductImage(imageFile)) : (input.imageUrl || '')
+    const saved: Product = { ...input, id: productId, imageUrl }
     setProducts((current) => input.id ? current.map((item) => item.id === input.id ? saved : item) : [saved, ...current])
     notify(input.id ? 'Produto atualizado com sucesso.' : 'Produto adicionado ao catálogo.')
   }
@@ -249,6 +268,7 @@ export default function App() {
     if (supabase) {
       const { error } = await supabase.from('products').delete().eq('id', productId)
       if (error) { notify(`Não foi possível excluir: ${error.message}`, 'error'); return }
+      await supabase.storage.from('product-images').remove([`${productId}/cover.webp`])
     }
     setProducts((current) => current.filter((product) => product.id !== productId))
     setCart((current) => current.filter((line) => line.productId !== productId))

@@ -1,6 +1,7 @@
 import { Minus, Plus, ShoppingBag, Trash2, X, ArrowRight, PackageCheck } from 'lucide-react'
 import type { Product } from '../types'
 import { currency } from '../lib/format'
+import ProductArtwork from './ProductArtwork'
 
 export default function CartDrawer({
   open, products, cart, onClose, onChangeQuantity, onRemove, onCheckout,
@@ -33,7 +34,7 @@ export default function CartDrawer({
             <div className="cart-lines">
               {lines.map(({ product, quantity }) => product && (
                 <article className="cart-line" key={product.id}>
-                  <div className={`cart-product-visual art-mini-${product.visual}`}><span>{product.visual === 'bulb' ? '💡' : product.visual === 'drill' ? '🔧' : product.visual === 'camera' ? '📹' : product.visual === 'speaker' ? '🔊' : product.visual === 'earbuds' ? '🎧' : '📦'}</span></div>
+                  <div className="cart-product-visual"><ProductArtwork product={product} compact /></div>
                   <div className="cart-line-main"><strong>{product.name}</strong><span>{product.sku}</span><b>{currency(product.price)}</b>
                     <div className="cart-quantity-control">
                       <button aria-label="Diminuir quantidade" onClick={() => onChangeQuantity(product.id, quantity - 1)}><Minus size={13} /></button>

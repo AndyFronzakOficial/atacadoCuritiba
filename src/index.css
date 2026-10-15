@@ -914,3 +914,43 @@ img { max-width: 100%; display: block; }
   .product-admin-table-wrap .admin-table { min-width: 790px; }
   .toast { top: 8px; right: 8px; max-width: calc(100% - 16px); font-size: 9px; }
 }
+
+/* Product photos uploaded from the admin form */
+.product-art.has-image { background: #fff; }
+.product-art.has-image::before, .product-art.has-image::after { display: none; }
+.product-real-image { position: relative; z-index: 1; width: 100%; height: 100%; padding: 12px; object-fit: contain; }
+.product-art.has-image .art-caption { z-index: 2; padding: 4px 6px; color: #6f675e; border: 1px solid rgba(235,231,223,.8); border-radius: 4px; background: rgba(255,255,255,.88); }
+.product-art-compact.has-image .product-real-image { padding: 2px; }
+.cart-product-visual { overflow: hidden; }
+.cart-product-visual .product-art-compact { width: 48px; height: 48px; }
+.checkout-line-art { overflow: hidden; }
+.checkout-line-art img { width: 100%; height: 100%; padding: 3px; object-fit: contain; }
+
+.image-field { gap: 7px; }
+.image-field-label { color: #59544c; font-size: 9px; font-weight: 700; }
+.image-upload-box { display: grid; grid-template-columns: 124px 1fr; align-items: center; gap: 13px; padding: 10px; border: 1px dashed #ded8cf; border-radius: 7px; background: #fcfbf8; }
+.image-upload-box.has-preview { border-style: solid; border-color: #e7dfd2; background: #fff; }
+.image-preview-area { width: 124px; height: 100px; display: grid; place-items: center; overflow: hidden; border: 1px solid #eeeae3; border-radius: 5px; background: linear-gradient(145deg,#fffaf1,#f5f1e9); }
+.image-preview-area > img { width: 100%; height: 100%; object-fit: contain; }
+.image-placeholder { display: flex; flex-direction: column; align-items: center; gap: 7px; color: #b8a78d; text-align: center; }
+.image-placeholder span { max-width: 93px; color: #9b9285; font-size: 7px; line-height: 1.4; }
+.image-upload-copy { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.image-upload-copy > strong { color: #433d34; font-size: 9px; }
+.image-upload-copy > span { color: #968d81; font-size: 8px; }
+.image-upload-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
+.image-pick-button { position: relative; min-height: 29px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden; padding: 0 9px; color: #a64a17; border: 1px solid #f0d9c2; border-radius: 5px; background: #fff5e9; font-size: 8px; font-weight: 750; cursor: pointer; }
+.image-pick-button:hover { background: #ffedda; }
+.image-pick-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.image-remove-button { min-height: 29px; display: inline-flex; align-items: center; gap: 5px; padding: 0 7px; color: #9a6257; border: 1px solid #f0e1de; border-radius: 5px; background: #fff; font-size: 8px; font-weight: 700; }
+.image-remove-button:hover { color: #b83830; background: #fff4f2; }
+.image-field-note { color: #9a9388; font-size: 7px; font-weight: 500; }
+
+@media (max-width: 560px) {
+  .image-upload-box { grid-template-columns: 86px 1fr; gap: 9px; padding: 8px; }
+  .image-preview-area { width: 86px; height: 86px; }
+  .image-placeholder svg { width: 22px; height: 22px; }
+  .image-placeholder span { max-width: 70px; font-size: 6px; }
+  .image-upload-copy > strong { font-size: 8px; }
+  .image-upload-copy > span, .image-field-note { font-size: 7px; }
+  .image-pick-button, .image-remove-button { min-height: 27px; padding: 0 7px; font-size: 7px; }
+}

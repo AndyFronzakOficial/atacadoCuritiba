@@ -1,16 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Barcode, ImagePlus, PackageCheck, X } from 'lucide-react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { Barcode, ImagePlus, PackageCheck, Trash2, UploadCloud, X } from 'lucide-react'
 import { categories } from '../lib/demo-data'
 import type { Product, ProductInput } from '../types'
 
 const visualByCategory: Record<string, string> = {
   Ferramentas: 'tools', Elétrica: 'extension', Iluminação: 'bulb', Celulares: 'charger', Áudio: 'speaker', Segurança: 'camera', Bazar: 'organizer',
 }
-
+const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
 type Draft = Omit<ProductInput, 'id'>
+
 const blankDraft = (sku: string): Draft => ({
   sku, name: '', barcode: '', description: '', category: 'Ferramentas', stock: 0,
-  initialPrice: 0, price: 0, discountPercent: 0, visual: 'tools', active: true,
+  initialPrice: 0, price: 0, discountPercent: 0, visual: 'tools', imageUrl: '', active: true,
 })
 
 export default function ProductFormModal({
@@ -19,18 +20,23 @@ export default function ProductFormModal({
   product: Product | null
   nextSku: string
   onClose: () => void
-  onSave: (input: ProductInput) => Promise<void>
+  onSave: (input: ProductInput, imageFile: File | null) => Promise<void>
 }) {
   const [draft, setDraft] = useState<Draft>(blankDraft(nextSku))
+  const [imagePreview, setImagePreview] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    setImageFile(null)
     if (product) {
       const { id: _id, ...rest } = product
-      setDraft(rest)
+      setDraft({ ...rest, imageUrl: product.imageUrl || '' })
+      setImagePreview(product.imageUrl || '')
     } else {
       setDraft(blankDraft(nextSku))
+      setImagePreview('')
     }
   }, [product, nextSku])
 
@@ -50,6 +56,35 @@ export default function ProductFormModal({
     })
   }
 
+  function chooseImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!acceptedImageTypes.includes(file.type)) {
+      setError('Escolha uma imagem JPG, PNG ou WebP.')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('A imagem deve ter no máximo 10 MB.')
+      return
+    }
+    setError('')
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') setImagePreview(reader.result)
+    }
+    reader.onerror = () => setError('Não foi possível abrir essa imagem. Tente outro arquivo.')
+    reader.readAsDataURL(file)
+  }
+
+  function removeImage() {
+    setImageFile(null)
+    setImagePreview('')
+    setDraft((current) => ({ ...current, imageUrl: '' }))
+    setError('')
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
@@ -59,7 +94,7 @@ export default function ProductFormModal({
     }
     setBusy(true)
     try {
-      await onSave({ ...draft, ...(product ? { id: product.id } : {}), visual: draft.visual || visualByCategory[draft.category] || 'organizer' })
+      await onSave({ ...draft, ...(product ? { id: product.id } : {}), visual: draft.visual || visualByCategory[draft.category] || 'organizer' }, imageFile)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível salvar o produto.')
     } finally {
@@ -83,11 +118,30 @@ export default function ProductFormModal({
             <label className="field">Categoria<select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value, visual: visualByCategory[e.target.value] || draft.visual })}>{categories.map((category) => <option key={category.name}>{category.name}</option>)}</select></label>
             <label className="field">Quantidade em estoque<input required type="number" min="0" step="1" value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: Math.max(0, Number(e.target.value)) })} /></label>
             <label className="field field-wide">Descrição<textarea rows={3} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Detalhes que ajudam o cliente a escolher..." /></label>
+
+            <div className="field field-wide image-field">
+              <span className="image-field-label">Imagem do produto <span className="optional">opcional</span></span>
+              <div className={`image-upload-box ${imagePreview ? 'has-preview' : ''}`}>
+                <div className="image-preview-area">
+                  {imagePreview ? <img src={imagePreview} alt="Pré-visualização do produto" /> : <div className="image-placeholder"><ImagePlus size={27} /><span>Sua foto aparecerá nos cards da loja</span></div>}
+                </div>
+                <div className="image-upload-copy">
+                  <strong>{imagePreview ? 'Imagem selecionada' : 'Adicione uma foto do produto'}</strong>
+                  <span>JPG, PNG ou WebP · até 10 MB</span>
+                  <div className="image-upload-actions">
+                    <label className="image-pick-button"><UploadCloud size={15} />{imagePreview ? 'Trocar imagem' : 'Escolher imagem'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>
+                    {imagePreview && <button type="button" className="image-remove-button" onClick={removeImage}><Trash2 size={14} /> Remover</button>}
+                  </div>
+                </div>
+              </div>
+              <small className="image-field-note">A imagem será otimizada e exibida no catálogo, carrinho e painel.</small>
+            </div>
+
             <div className="price-form-field"><label className="field">Valor inicial (R$)<input required type="number" min="0" step="0.01" value={draft.initialPrice} onChange={(e) => updatePrice('initialPrice', Number(e.target.value))} /></label></div>
             <div className="price-form-field"><label className="field">Valor final (R$)<input required type="number" min="0" step="0.01" value={draft.price} onChange={(e) => updatePrice('price', Number(e.target.value))} /></label></div>
             <div className="price-form-field field-discount"><label className="field">Desconto (%)<div className="percent-input"><input type="number" min="0" max="100" step="1" value={draft.discountPercent} onChange={(e) => updatePrice('discountPercent', Number(e.target.value))} /><span>%</span></div></label></div>
           </div>
-          <div className="product-form-hint"><ImagePlus size={17} /><span>A imagem do card é ilustrativa e usa a identidade visual da categoria. Você poderá cadastrar fotos reais na próxima etapa.</span></div>
+          <div className="product-form-hint"><ImagePlus size={17} /><span>Sem uma foto enviada, o produto continuará usando a arte ilustrativa da categoria.</span></div>
           {error && <div className="form-error" role="alert">{error}</div>}
           <footer className="product-form-footer"><button type="button" className="button button-outline" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? <span className="button-spinner" /> : product ? 'Salvar alterações' : 'Adicionar ao catálogo'}</button></footer>
         </form>

@@ -145,7 +145,7 @@ export default function CheckoutModal({
             <div className="checkout-lines">
               {lines.map(({ product, quantity }) => (
                 <div className="checkout-line" key={product.id}>
-                  <div className="checkout-line-art"><span>{product.visual === 'bulb' ? '💡' : product.visual === 'drill' ? '🔧' : product.visual === 'camera' ? '📹' : product.visual === 'speaker' ? '🔊' : product.visual === 'earbuds' ? '🎧' : '📦'}</span></div>
+                  <div className="checkout-line-art">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <span>{product.visual === 'bulb' ? '💡' : product.visual === 'drill' ? '🔧' : product.visual === 'camera' ? '📹' : product.visual === 'speaker' ? '🔊' : product.visual === 'earbuds' ? '🎧' : '📦'}</span>}</div>
                   <div className="checkout-line-copy"><strong>{product.name}</strong><small>{quantity} × {currency(product.price)}</small></div>
                   <b>{currency(product.price * quantity)}</b>
                 </div>

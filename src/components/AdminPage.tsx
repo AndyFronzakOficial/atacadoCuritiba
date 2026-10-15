@@ -42,7 +42,7 @@ export default function AdminPage({
   onBack: () => void
   onChangeOrderStatus: (orderId: string, status: OrderStatus) => void
   onDeleteOrder: (orderId: string) => void
-  onSaveProduct: (input: ProductInput) => Promise<void>
+  onSaveProduct: (input: ProductInput, imageFile: File | null) => Promise<void>
   onDeleteProduct: (productId: string) => void
 }) {
   const [tab, setTab] = useState<'dashboard' | 'orders' | 'products'>('dashboard')
@@ -95,8 +95,8 @@ export default function AdminPage({
     const max = products.reduce((highest, product) => Math.max(highest, Number(product.sku.replace(/\D/g, '')) || 0), 0)
     return `ATC-${String(max + 1).padStart(3, '0')}`
   }
-  async function saveProduct(input: ProductInput) {
-    await onSaveProduct(input)
+  async function saveProduct(input: ProductInput, imageFile: File | null) {
+    await onSaveProduct(input, imageFile)
     setFormOpen(false)
     setFormProduct(null)
   }
