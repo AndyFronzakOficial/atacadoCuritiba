@@ -134,7 +134,7 @@ export default function ProductFormModal({
                   </div>
                 </div>
               </div>
-              <small className="image-field-note">A imagem será otimizada e exibida no catálogo, carrinho e painel.</small>
+              <small className="image-field-note">A foto será otimizada e enviada ao Google Drive da loja. O link público é salvo no produto para exibição no catálogo, carrinho e painel; no primeiro envio, autorize a conta Google da loja.</small>
             </div>
 
             <div className="price-form-field"><label className="field">Valor inicial (R$)<input required type="number" min="0" step="0.01" value={draft.initialPrice} onChange={(e) => updatePrice('initialPrice', Number(e.target.value))} /></label></div>

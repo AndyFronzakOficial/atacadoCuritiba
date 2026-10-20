@@ -12,12 +12,17 @@ import ProductArtwork from './components/ProductArtwork'
 import Toast from './components/Toast'
 import { categories, demoOrders, demoProducts } from './lib/demo-data'
 import { currency, makeId, makeOrderNumber, whatsappUrl } from './lib/format'
-import { blobToDataUrl, optimizeProductImage } from './lib/images'
+import { optimizeProductImage } from './lib/images'
+import {
+  createProductImagesFolder, deleteProductImageFromDrive, extractGoogleDriveFileId,
+  getGoogleDriveAccessToken, loadGoogleIdentityScript, uploadProductImageToDrive,
+} from './lib/googleDrive'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import type { CartLine, Customer, Order, OrderStatus, Product, ProductInput } from './types'
 
 const STORE_PHONE = '+55 41 98746-3669'
 const storageKeys = { products: 'atc.products.v1', orders: 'atc.orders.v1', cart: 'atc.cart.v1' }
+const driveFolderSetting = 'drive_product_images_folder_id'
 
 function readStored<T>(key: string, fallback: T): T {
   try {
@@ -73,6 +78,10 @@ export default function App() {
   useEffect(() => { localStorage.setItem(storageKeys.products, JSON.stringify(products)) }, [products])
   useEffect(() => { localStorage.setItem(storageKeys.orders, JSON.stringify(orders)) }, [orders])
   useEffect(() => { localStorage.setItem(storageKeys.cart, JSON.stringify(cart)) }, [cart])
+
+  useEffect(() => {
+    if (import.meta.env.VITE_GOOGLE_CLIENT_ID) void loadGoogleIdentityScript().catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     const client = supabase
@@ -144,6 +153,23 @@ export default function App() {
     const product = products.find((item) => item.id === productId)
     if (quantity <= 0) { setCart((current) => current.filter((line) => line.productId !== productId)); return }
     setCart((current) => current.map((line) => line.productId === productId ? { ...line, quantity: Math.min(quantity, product?.stock ?? quantity) } : line))
+  }
+
+  async function getProductImagesFolderId(token: string): Promise<string> {
+    if (supabase) {
+      const { data, error } = await supabase.from('store_settings').select('value').eq('key', driveFolderSetting).maybeSingle()
+      if (error) throw new Error(`Não foi possível consultar a pasta do Drive no Supabase: ${error.message}. Execute o schema atualizado.`)
+      if (data?.value) return String(data.value)
+      const folderId = await createProductImagesFolder(token)
+      const { error: saveError } = await supabase.from('store_settings').upsert({ key: driveFolderSetting, value: folderId }, { onConflict: 'key' })
+      if (saveError) throw new Error(`A pasta do Google Drive foi criada, mas não foi possível salvar sua configuração: ${saveError.message}`)
+      return folderId
+    }
+    const cachedFolder = localStorage.getItem('atc.googleDriveImagesFolderId')
+    if (cachedFolder) return cachedFolder
+    const folderId = await createProductImagesFolder(token)
+    localStorage.setItem('atc.googleDriveImagesFolderId', folderId)
+    return folderId
   }
 
   async function handleCheckout(customer: Customer, password: string, mode: 'register' | 'login'): Promise<Order> {
@@ -227,50 +253,61 @@ export default function App() {
 
   async function saveProduct(input: ProductInput, imageFile: File | null) {
     const productId = input.id || makeId()
-    if (supabase) {
-      let imageUrl = input.imageUrl || ''
-      const storagePath = `${productId}/cover.webp`
-      if (imageFile) {
-        const optimized = await optimizeProductImage(imageFile)
-        const { error } = await supabase.storage.from('product-images').upload(storagePath, optimized, {
-          upsert: true, cacheControl: '3600', contentType: optimized.type || 'image/webp',
-        })
-        if (error) throw new Error(`Não foi possível enviar a imagem: ${error.message}. Confira o bucket product-images no Supabase.`)
-        const publicUrl = supabase.storage.from('product-images').getPublicUrl(storagePath).data.publicUrl
-        imageUrl = `${publicUrl}?v=${Date.now()}`
-      } else if (!imageUrl && input.id) {
-        // Ao remover a foto no formulário, apaga também o arquivo anterior do Storage.
-        await supabase.storage.from('product-images').remove([storagePath])
-      }
+    const currentProduct = input.id ? products.find((item) => item.id === input.id) : undefined
+    const oldDriveFileId = extractGoogleDriveFileId(currentProduct?.imageUrl)
+    let imageUrl = input.imageUrl || ''
+    let driveToken = ''
+    let newDriveFileId: string | null = null
 
-      const payload = {
-        sku: input.sku, barcode: input.barcode, name: input.name, description: input.description,
-        category: input.category, stock: input.stock, initial_price: input.initialPrice, price: input.price,
-        discount_percent: input.discountPercent, visual: input.visual, image_url: imageUrl, active: input.active,
-      }
+    if (imageFile) {
+      // Solicita autorização diretamente no clique de salvar, sem expor segredos do Drive no frontend.
+      driveToken = await getGoogleDriveAccessToken()
+      const optimized = await optimizeProductImage(imageFile)
+      const folderId = await getProductImagesFolderId(driveToken)
+      const safeSku = input.sku.replace(/[^a-zA-Z0-9-_]/g, '-')
+      const uploaded = await uploadProductImageToDrive(optimized, `${safeSku}-${Date.now()}.webp`, folderId, driveToken)
+      imageUrl = uploaded.imageUrl
+      newDriveFileId = uploaded.fileId
+    }
+
+    const payload = {
+      sku: input.sku, barcode: input.barcode, name: input.name, description: input.description,
+      category: input.category, stock: input.stock, initial_price: input.initialPrice, price: input.price,
+      discount_percent: input.discountPercent, visual: input.visual, image_url: imageUrl, active: input.active,
+    }
+    let saved: Product
+    if (supabase) {
       const result = input.id
         ? await supabase.from('products').update(payload).eq('id', productId).select('*').single()
         : await supabase.from('products').insert({ ...payload, id: productId }).select('*').single()
-      if (result.error) throw new Error(result.error.message)
-      const saved = mapProduct(result.data as Record<string, unknown>)
-      setProducts((current) => input.id ? current.map((item) => item.id === input.id ? saved : item) : [...current, saved])
-      notify(input.id ? 'Produto atualizado com sucesso.' : 'Produto adicionado ao catálogo.')
-      return
+      if (result.error) {
+        if (newDriveFileId && driveToken) await deleteProductImageFromDrive(newDriveFileId, driveToken).catch(() => undefined)
+        throw new Error(result.error.message)
+      }
+      saved = mapProduct(result.data as Record<string, unknown>)
+    } else {
+      saved = { ...input, id: productId, imageUrl }
     }
 
-    const imageUrl = imageFile ? await blobToDataUrl(await optimizeProductImage(imageFile)) : (input.imageUrl || '')
-    const saved: Product = { ...input, id: productId, imageUrl }
     setProducts((current) => input.id ? current.map((item) => item.id === input.id ? saved : item) : [saved, ...current])
+    if (oldDriveFileId && oldDriveFileId !== newDriveFileId && (newDriveFileId || !imageUrl)) {
+      if (!driveToken) {
+        try { driveToken = await getGoogleDriveAccessToken() } catch { /* product update is already saved; old file can be cleaned up later */ }
+      }
+      if (driveToken) await deleteProductImageFromDrive(oldDriveFileId, driveToken).catch(() => undefined)
+    }
     notify(input.id ? 'Produto atualizado com sucesso.' : 'Produto adicionado ao catálogo.')
   }
 
   async function deleteProduct(productId: string) {
+    const product = products.find((item) => item.id === productId)
     if (supabase) {
       const { error } = await supabase.from('products').delete().eq('id', productId)
       if (error) { notify(`Não foi possível excluir: ${error.message}`, 'error'); return }
-      await supabase.storage.from('product-images').remove([`${productId}/cover.webp`])
     }
-    setProducts((current) => current.filter((product) => product.id !== productId))
+    const driveFileId = extractGoogleDriveFileId(product?.imageUrl)
+    if (driveFileId) await deleteProductImageFromDrive(driveFileId).catch(() => undefined)
+    setProducts((current) => current.filter((item) => item.id !== productId))
     setCart((current) => current.filter((line) => line.productId !== productId))
     notify('Produto excluído do catálogo.')
   }

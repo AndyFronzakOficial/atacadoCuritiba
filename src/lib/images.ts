@@ -19,11 +19,3 @@ export async function optimizeProductImage(file: File): Promise<Blob> {
   return blob
 }
 
-export function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Não foi possível ler a imagem.'))
-    reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'))
-    reader.readAsDataURL(blob)
-  })
-}
