@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Barcode, ImagePlus, PackageCheck, Trash2, UploadCloud, X } from 'lucide-react'
 import { categories } from '../lib/demo-data'
+import { getGoogleDriveImageUrl } from '../lib/googleDrive'
 import type { Product, ProductInput } from '../types'
 
 const visualByCategory: Record<string, string> = {
@@ -33,7 +34,7 @@ export default function ProductFormModal({
     if (product) {
       const { id: _id, ...rest } = product
       setDraft({ ...rest, imageUrl: product.imageUrl || '' })
-      setImagePreview(product.imageUrl || '')
+      setImagePreview(getGoogleDriveImageUrl(product.imageUrl))
     } else {
       setDraft(blankDraft(nextSku))
       setImagePreview('')

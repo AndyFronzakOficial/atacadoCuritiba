@@ -149,7 +149,7 @@ export async function uploadProductImageToDrive(blob: Blob, fileName: string, fo
 
   return {
     fileId: created.id,
-    imageUrl: `https://drive.google.com/uc?export=view&id=${encodeURIComponent(created.id)}`,
+    imageUrl: `https://drive.google.com/thumbnail?id=${encodeURIComponent(created.id)}&sz=w1200`,
   }
 }
 
@@ -163,6 +163,19 @@ export async function deleteProductImageFromDrive(fileId: string, token?: string
   if (!response.ok && response.status !== 404) {
     const message = await response.text()
     throw new Error(message || `Não foi possível remover a foto do Google Drive (${response.status}).`)
+  }
+}
+
+export function getGoogleDriveImageUrl(imageUrl: string | undefined): string {
+  if (!imageUrl) return ''
+  try {
+    const url = new URL(imageUrl)
+    if (!url.hostname.endsWith('drive.google.com')) return imageUrl
+    const fileId = url.searchParams.get('id') || url.pathname.match(/\/d\/([^/]+)/)?.[1]
+    if (!fileId) return imageUrl
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w1200`
+  } catch {
+    return imageUrl
   }
 }
 

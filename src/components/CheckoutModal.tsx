@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ArrowLeft, Check, CheckCircle2, MapPin, MessageCircle, ShieldCheck, ShoppingBag, X } from 'lucide-react'
 import type { Customer, Order, Product } from '../types'
 import { currency, maskCep, maskCpf, maskPhone, whatsappUrl } from '../lib/format'
+import { getGoogleDriveImageUrl } from '../lib/googleDrive'
 
 export interface CheckoutLine {
   product: Product
@@ -145,7 +146,10 @@ export default function CheckoutModal({
             <div className="checkout-lines">
               {lines.map(({ product, quantity }) => (
                 <div className="checkout-line" key={product.id}>
-                  <div className="checkout-line-art">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} /> : <span>{product.visual === 'bulb' ? '💡' : product.visual === 'drill' ? '🔧' : product.visual === 'camera' ? '📹' : product.visual === 'speaker' ? '🔊' : product.visual === 'earbuds' ? '🎧' : '📦'}</span>}</div>
+                  <div className="checkout-line-art">
+                    {product.imageUrl && <img src={getGoogleDriveImageUrl(product.imageUrl)} alt={product.name} onError={(event) => { event.currentTarget.style.display = 'none'; const fallback = event.currentTarget.nextElementSibling as HTMLElement | null; if (fallback) fallback.hidden = false }} />}
+                    <span style={{ display: product.imageUrl ? 'none' : 'flex' }}>{product.visual === 'bulb' ? '💡' : product.visual === 'drill' ? '🔧' : product.visual === 'camera' ? '📹' : product.visual === 'speaker' ? '🔊' : product.visual === 'earbuds' ? '🎧' : '📦'}</span>
+                  </div>
                   <div className="checkout-line-copy"><strong>{product.name}</strong><small>{quantity} × {currency(product.price)}</small></div>
                   <b>{currency(product.price * quantity)}</b>
                 </div>
